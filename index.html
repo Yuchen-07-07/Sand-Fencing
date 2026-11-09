@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>築籬定砂模型</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+   
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #7798d9;
+            color: #f8fafc;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #87ceeb 0%, #e0f6ff 50%, #fef3c7 75%, #d97706 100%);
+            touch-action: none;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(50px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-scenario {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-scenario.active {
+            background-color: #2563eb;
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.5);
+            border-color: #60a5fa;
+        }
+    </style>
+  </head>
+  <body class="min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-blue-500 selection:text-white">
+
+<!-- Header Section -->
+<header class="w-full glass-panel border-b border-slate-700 py-4 px-6 z-10 sticky top-0">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="p-2.5 bg-blue-600 rounded-xl shadow-lg">
+                <i class="fa-solid font-bold fa-umbrella-beach text-2xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                    築籬定砂互動模型
+                </h1>
+                <p class="text-xs text-slate-400">築籬定砂情境模擬器</p>
+            </div>
+        </div>
+
+        <!-- Scenario Selection Tabs -->
+        <div class="grid grid-cols-3 gap-2 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-700 w-full md:w-auto">
+            <button id="tab-sc1" onclick="switchScenario(1)" class="btn-scenario active flex items-center justify-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium border border-transparent">
+                <i class="fa-solid fa-wind text-amber-400"></i>
+                <span>情境 1：無竹籬裸沙</span>
+            </button>
+            <button id="tab-sc2" onclick="switchScenario(2)" class="btn-scenario flex items-center justify-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium border border-transparent">
+                <i class="fa-solid fa-seedling text-emerald-400"></i>
+                <span>情境 2：竹籬建立</span>
+            </button>
+            <button id="tab-sc3" onclick="switchScenario(3)" class="btn-scenario flex items-center justify-center space-x-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium border border-transparent">
+                <i class="fa-solid fa-cloud-showers-heavy text-cyan-400"></i>
+                <span>情境 3：颱風暴潮衝擊</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- Main Content Area -->
+<main class="max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6 my-auto">
+
+    <!-- Left Interactive Canvas Container (3 Columns on Large Screens) -->
+    <div class="lg:col-span-3 flex flex-col space-y-4">
+        <!-- Simulation Canvas Card -->
+        <div class="relative w-full rounded-2xl overflow-hidden border border-slate-700 shadow-2xl glass-panel">
+            
+            <!-- Floating Info Badge on Canvas -->
+            <div class="absolute top-4 left-4 z-10 glass-panel px-3 py-1.5 rounded-lg border border-slate-600 text-xs flex items-center space-x-2 shadow-md">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span id="scenario-badge-title" class="font-semibold text-white">情境 1：無防護海岸風砂侵襲</span>
+            </div>
+
+            <!-- Scenario 2 Succession Stage Stepper Overlay -->
+            <div id="succession-stepper" class="hidden absolute top-4 right-4 z-10 glass-panel p-2.5 rounded-xl border border-slate-600 text-xs shadow-md space-y-1">
+                <div class="font-semibold text-amber-300 text-[11px] mb-1"><i class="fa-solid fa-timeline mr-1"></i>情境2演替進度</div>
+                <div class="flex items-center space-x-2">
+                    <span id="stg-1-dot" class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                    <span id="stg-1-txt" class="text-white font-medium">階段一：設籬攔砂中</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span id="stg-2-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+                    <span id="stg-2-txt" class="text-slate-400">階段二：定砂植物定植</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span id="stg-3-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+                    <span id="stg-3-txt" class="text-slate-400">階段三：保安林長大</span>
+                </div>
+            </div>
+
+            <!-- Interactive Simulation Canvas -->
+            <canvas id="simCanvas" class="w-full h-[400px] sm:h-[480px] lg:h-[540px] block cursor-grab active:cursor-grabbing"></canvas>
+
+            <!-- Bottom Simulation Overlay Controls -->
+            <div class="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 backdrop-blur-md p-3 rounded-xl border border-slate-700">
+                <!-- Playback Controls -->
+                <div class="flex items-center space-x-2">
+                    <button id="btn-play" onclick="togglePlayPause()" class="p-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-medium text-xs sm:text-sm flex items-center space-x-1.5 transition">
+                        <i id="play-icon" class="fa-solid fa-pause"></i>
+                        <span id="play-text">暫停</span>
+                    </button>
+                    <button onclick="resetSimulation()" class="p-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-200 text-xs sm:text-sm flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>重置</span>
+                    </button>
+                </div>
+
+                <!-- Interactive Sliders -->
+                <div class="flex items-center space-x-4 text-xs">
+                    <!-- Wind Speed -->
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-wind text-slate-400"></i>
+                        <span class="hidden sm:inline text-slate-300">風速強度:</span>
+                        <input id="slider-wind" type="range" min="1" max="10" value="5" oninput="updateWindSpeed(this.value)" class="w-20 sm:w-28 accent-blue-500 cursor-pointer">
+                        <span id="val-wind" class="font-mono text-blue-400 w-6">5</span>
+                    </div>
+                    <!-- Wave/Storm Intensity -->
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-water text-cyan-400"></i>
+                        <span class="hidden sm:inline text-slate-300">浪潮強度:</span>
+                        <input id="slider-wave" type="range" min="1" max="10" value="3" oninput="updateWaveIntensity(this.value)" class="w-20 sm:w-28 accent-cyan-500 cursor-pointer">
+                        <span id="val-wave" class="font-mono text-cyan-400 w-6">3</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side Explanatory Card (1 Column) -->
+    <div class="lg:col-span-1 flex flex-col justify-between space-y-4">
+        
+        <div class="glass-panel p-5 rounded-2xl border border-slate-700 h-full flex flex-col justify-between">
+            <div>
+                <!-- Header -->
+                <div class="flex items-center space-x-2 text-blue-400 font-bold mb-3 border-b border-slate-700 pb-2">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <h2 class="text-base text-slate-100">生態現象與環境原理解析</h2>
+                </div>
+
+                <!-- Dynamic Description Text -->
+                <div id="info-content" class="space-y-3 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    <!-- Text dynamically updated by JS -->
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</main>
+
+<!-- Footer -->
+<footer class="w-full text-center py-3 text-xs text-slate-500 border-t border-slate-800">
+    築籬定砂互動模型 &copy; 2026 Coastal Ecology Protection Simulation
+</footer>
+
+<!-- JavaScript Logic & Canvas Engine -->
+<script>
+    // Global Canvas and Game Loop Variables
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let animationFrameId = null;
+    let isRunning = true;
+    let currentScenario = 1;
+
+    // Simulation Parameters
+    let windSpeed = 5;
+    let waveIntensity = 3;
+    let timeStep = 0;
+
+    // State Trackers
+    let residentialSandAccumulation = 0; // 0 - 100%
+    let duneAccumulationHeight = 0;       // 0 - 60px
+    let forestHealth = 100;               // 100% down to low values
+
+    // Scenario 2 Progressive Stage Trackers (1: Sand Accumulation, 2: Ground Plants, 3: Forest Trees)
+    let successionStage = 1;
+    let plantsPlanted = false;
+    let forestPlanted = false;
+
+    // Sand Particles Array
+    let sandParticles = [];
+    const MAX_SAND = 140;
+
+    // Rain Particles for Typhoon Scenario
+    let rainParticles = [];
+    const MAX_RAIN = 140;
+
+    // Water Waves
+    let waveOffset = 0;
+
+    // Trees & Vegetation Setup
+    let trees = [];
+
+    // Resize Canvas to fit wrapper smoothly
+    function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        initTrees();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    // Class definition for Trees/Vegetation
+    class Tree {
+        constructor(x, y, scale = 1, type = 'Casuarina') {
+            this.x = x;
+            this.y = y;
+            this.scale = scale;
+            this.targetScale = scale;
+            this.type = type; // 'GroundCover' (馬鞍藤) or 'Casuarina' (木麻黃/保安林)
+            this.angle = 0;   // Swaying angle
+            this.isFallen = false;
+            this.fallAngle = 0;
+        }
+
+        draw(ctx, windStrength, isTyphoon) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+
+            // Calculate Swaying
+            if (!this.isFallen) {
+                const swayFactor = isTyphoon ? 0.07 : 0.03;
+                const sway = Math.sin(timeStep * 0.08 + this.x) * (windStrength * swayFactor);
+                this.angle = sway;
+                ctx.rotate(this.angle);
+            } else {
+                // Fallen animation transition
+                if (this.fallAngle < Math.PI / 2.3) {
+                    this.fallAngle += 0.04;
+                }
+                ctx.rotate(this.fallAngle);
+            }
+
+            if (this.type === 'GroundCover') {
+                // Coastal creepers (馬鞍藤/海邊草本)
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(-10 * this.scale, -4, 6 * this.scale, 0, Math.PI * 2);
+                ctx.arc(0, -6 * this.scale, 8 * this.scale, 0, Math.PI * 2);
+                ctx.arc(10 * this.scale, -4, 6 * this.scale, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Flowers (Beach Morning Glory)
+                ctx.fillStyle = '#ec4899';
+                ctx.beginPath();
+                ctx.arc(2, -10 * this.scale, 3.5 * this.scale, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Shelterbelt Trees (木麻黃/防風林)
+                // Trunk
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(-4 * this.scale, -40 * this.scale, 8 * this.scale, 40 * this.scale);
+
+                // Foliage Layers
+                ctx.fillStyle = this.isFallen ? '#a16207' : '#15803d'; // Green or slightly damaged
+                
+                // Layer 1
+                ctx.beginPath();
+                ctx.moveTo(0, -90 * this.scale);
+                ctx.lineTo(-25 * this.scale, -45 * this.scale);
+                ctx.lineTo(25 * this.scale, -45 * this.scale);
+                ctx.closePath();
+                ctx.fill();
+
+                // Layer 2
+                ctx.beginPath();
+                ctx.moveTo(0, -75 * this.scale);
+                ctx.lineTo(-30 * this.scale, -30 * this.scale);
+                ctx.lineTo(30 * this.scale, -30 * this.scale);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+    }
+
+    // Initialize Tree Array
+    function initTrees() {
+        trees = [];
+        const canvasWidth = canvas.width;
+        const groundY = canvas.height * 0.72;
+
+        if (currentScenario === 2) {
+            // Scenario 2 logic: Dynamically populated based on successionStage
+            const fenceX = canvasWidth * 0.45;
+            if (plantsPlanted) {
+                for (let i = 0; i < 5; i++) {
+                    trees.push(new Tree(fenceX + 10 + i * 18, groundY - (duneAccumulationHeight * 0.3), 0.7, 'GroundCover'));
+                }
+            }
+            if (forestPlanted) {
+                const forestStartX = canvasWidth * 0.60;
+                for (let i = 0; i < 7; i++) {
+                    const tree = new Tree(forestStartX + i * 28, groundY, 0.15, 'Casuarina');
+                    tree.targetScale = 0.85 + Math.random() * 0.3;
+                    trees.push(tree);
+                }
+            }
+        } else if (currentScenario === 3) {
+            // Scenario 3: Complete defense line present (Fence + Dune plants + Full Shelterbelt forest)
+            const fenceX = canvasWidth * 0.45;
+            // Dune plants
+            for (let i = 0; i < 5; i++) {
+                trees.push(new Tree(fenceX + 10 + i * 18, groundY - 12, 0.7, 'GroundCover'));
+            }
+            // Mature Shelterbelt forest under typhoon stress
+            const forestStartX = canvasWidth * 0.58;
+            for (let i = 0; i < 8; i++) {
+                trees.push(new Tree(forestStartX + i * 26, groundY, 0.9 + Math.random() * 0.25, 'Casuarina'));
+            }
+        }
+    }
+
+    // Sand Particle Setup
+    function initSandParticles() {
+        sandParticles = [];
+        for (let i = 0; i < MAX_SAND; i++) {
+            sandParticles.push({
+                x: Math.random() * canvas.width * 0.5,
+                y: canvas.height * 0.65 + Math.random() * (canvas.height * 0.3),
+                vx: 2 + Math.random() * 4,
+                vy: (Math.random() - 0.5) * 1.5,
+                size: 1.5 + Math.random() * 2,
+                alpha: 0.4 + Math.random() * 0.6
+            });
+        }
+    }
+
+    // Rain Particle Setup
+    function initRainParticles() {
+        rainParticles = [];
+        for (let i = 0; i < MAX_RAIN; i++) {
+            rainParticles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: -4 - Math.random() * 6,
+                vy: 10 + Math.random() * 8,
+                length: 10 + Math.random() * 12
+            });
+        }
+    }
+
+    // Information Cards & UI Updates
+    const infoTexts = {
+        1: `
+            <h4 class="text-amber-400 font-semibold text-sm">現象說明：裸露海岸與強風飛砂</h4>
+            <p>當海岸線缺乏防風竹籬或定砂植栽時，強勁的季風可以直接作用於沙灘頂部乾燥的沙粒。</p>
+            <div class="p-2.5 bg-amber-950/40 border border-amber-800/50 rounded-lg text-amber-200 text-xs">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i> <strong>生態危機：</strong> 風砂不受阻擋，大幅向內陸推進，導致居民區街道、房屋遭到大量沙粒夾帶侵入，造成嚴重的防風防砂問題。
+            </div>
+        `,
+        2: `
+            <h4 class="text-emerald-400 font-semibold text-sm">現象說明：竹籬攔砂與階段生態造林</h4>
+            <p><strong>階段 1（設籬攔砂）：</strong> 設置編紮竹籬降低風速，強迫風砂沉降堆積成防風沙丘。</p>
+            <p><strong>階段 2（定砂植物）：</strong> 當沙丘達到一定高度後，人工栽植馬鞍藤等藤蔓草本，以植物根系固砂。</p>
+            <p><strong>階段 3（保安林建造）：</strong> 沙丘穩定後進一步種植木麻黃或是椰子樹成立保安林，建構漸進式複合海岸防禦體系。</p>
+        `,
+        3: `
+            <h4 class="text-cyan-400 font-semibold text-sm">現象說明：颱風暴潮衝擊與保安林倒伏</h4>
+            <p>颱風帶來極端<strong>強風、豪雨與暴潮 (Storm Surge)</strong>，即使海岸前緣有竹籬與定砂沙丘，巨浪仍可能吞噬海岸沙灘。</p>
+            <p>強烈暴風浪衝擊後方保安林，導致樹木劇烈搖晃、根部鬆動甚至風倒。突顯定期維護與多層次海岸防範之重要性。</p>
+        `
+    };
+
+    function updateUIStats() {
+        // Update Text
+        document.getElementById('info-content').innerHTML = infoTexts[currentScenario];
+        
+        // Badge Label
+        const badges = {
+            1: "情境 1：無防護海岸風砂侵襲",
+            2: "情境 2：竹籬攔砂與三階段進階",
+            3: "情境 3：颱風暴潮衝擊對保安林考驗"
+        };
+        document.getElementById('scenario-badge-title').innerText = badges[currentScenario];
+
+        // Toggle succession stepper badge display
+        const stepperElem = document.getElementById('succession-stepper');
+        if (currentScenario === 2) {
+            stepperElem.classList.remove('hidden');
+            updateSuccessionUI();
+        } else {
+            stepperElem.classList.add('hidden');
+        }
+
+    }
+
+    function updateSuccessionUI() {
+        const dots = [document.getElementById('stg-1-dot'), document.getElementById('stg-2-dot'), document.getElementById('stg-3-dot')];
+        const txts = [document.getElementById('stg-1-txt'), document.getElementById('stg-2-txt'), document.getElementById('stg-3-txt')];
+
+        dots.forEach((dot, idx) => {
+            const stageNum = idx + 1;
+            if (stageNum === successionStage) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+                txts[idx].className = "text-emerald-300 font-bold";
+            } else if (stageNum < successionStage) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-blue-500";
+                txts[idx].className = "text-blue-200 font-medium";
+            } else {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-slate-600";
+                txts[idx].className = "text-slate-400";
+            }
+        });
+    }
+
+    // Scenario Switch Logic
+    function switchScenario(num) {
+        currentScenario = num;
+
+        // Highlight Tab Buttons
+        [1, 2, 3].forEach(i => {
+            const btn = document.getElementById(`tab-sc${i}`);
+            if (i === num) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Adjust Defaults per Scenario
+        if (num === 1) {
+            document.getElementById('slider-wind').value = 6;
+            document.getElementById('slider-wave').value = 3;
+        } else if (num === 2) {
+            document.getElementById('slider-wind').value = 6;
+            document.getElementById('slider-wave').value = 2;
+        } else if (num === 3) {
+            document.getElementById('slider-wind').value = 9;
+            document.getElementById('slider-wave').value = 9;
+        }
+
+        windSpeed = parseFloat(document.getElementById('slider-wind').value);
+        waveIntensity = parseFloat(document.getElementById('slider-wave').value);
+        document.getElementById('val-wind').innerText = windSpeed;
+        document.getElementById('val-wave').innerText = waveIntensity;
+
+        resetSimulation();
+    }
+
+    // Reset Simulation State
+    function resetSimulation() {
+        residentialSandAccumulation = 0;
+        duneAccumulationHeight = 0;
+        forestHealth = 100;
+        timeStep = 0;
+
+        successionStage = 1;
+        plantsPlanted = false;
+        forestPlanted = false;
+
+        initSandParticles();
+        initRainParticles();
+        initTrees();
+        updateUIStats();
+    }
+
+    // Control handlers
+    function togglePlayPause() {
+        isRunning = !isRunning;
+        const btnText = document.getElementById('play-text');
+        const btnIcon = document.getElementById('play-icon');
+
+        if (isRunning) {
+            btnText.innerText = "暫停";
+            btnIcon.className = "fa-solid fa-pause";
+            animate();
+        } else {
+            btnText.innerText = "播放";
+            btnIcon.className = "fa-solid fa-play";
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        }
+    }
+
+    function updateWindSpeed(val) {
+        windSpeed = parseFloat(val);
+        document.getElementById('val-wind').innerText = val;
+    }
+
+    function updateWaveIntensity(val) {
+        waveIntensity = parseFloat(val);
+        document.getElementById('val-wave').innerText = val;
+    }
+
+    // Canvas Rendering Functions
+    function drawBackgroundSky() {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        let skyGradient = ctx.createLinearGradient(0, 0, 0, h * 0.7);
+        
+        if (currentScenario === 3) {
+            // Dark Stormy Sky
+            skyGradient.addColorStop(0, '#1e293b');
+            skyGradient.addColorStop(0.6, '#334155');
+            skyGradient.addColorStop(1, '#475569');
+        } else {
+            // Clear Sunny Coastal Sky
+            skyGradient.addColorStop(0, '#38bdf8');
+            skyGradient.addColorStop(0.5, '#bae6fd');
+            skyGradient.addColorStop(1, '#fef08a');
+        }
+
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, w, h);
+
+        // Draw Sun in Scenario 1 and 2
+        if (currentScenario !== 3) {
+            ctx.fillStyle = 'rgba(253, 224, 71, 0.8)';
+            ctx.beginPath();
+            ctx.arc(w * 0.85, h * 0.18, 35, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function drawOceanAndWaves() {
+        const w = canvas.width;
+        const h = canvas.height;
+        // Shoreline surges inward significantly during typhoon
+        const oceanX = currentScenario === 3 ? w * 0.38 : w * 0.20;
+
+        // Ocean water body
+        const waterGradient = ctx.createLinearGradient(0, h * 0.65, 0, h);
+        waterGradient.addColorStop(0, currentScenario === 3 ? '#0f4c81' : '#0284c7');
+        waterGradient.addColorStop(1, currentScenario === 3 ? '#082f49' : '#0369a1');
+
+        ctx.fillStyle = waterGradient;
+        ctx.beginPath();
+        ctx.moveTo(0, h * 0.65);
+
+        // Wave movement logic
+        waveOffset += 0.05 * (waveIntensity / 3);
+
+        for (let x = 0; x <= oceanX; x += 10) {
+            const amp = waveIntensity * (currentScenario === 3 ? 5.0 : 3.5);
+            let y;
+            if (currentScenario === 1 || currentScenario === 2) {
+                // 情境1、2：讓海面波浪逐漸銜接沙灘，避免交界處出現明顯高低落差
+                const progress = x / oceanX;
+                const shorelineY = h * 0.66 + (h * 0.72 - h * 0.66) * progress;
+                y = shorelineY + Math.sin(x * 0.03 + waveOffset) * amp * (1 - progress);
+            } else {
+                y = h * 0.66 + Math.sin(x * 0.03 + waveOffset) * amp;
+            }
+            ctx.lineTo(x, y);
+        }
+
+        ctx.lineTo(oceanX, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        ctx.fill();
+
+        // Wave Foam Tips
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        for (let x = 0; x <= oceanX; x += 8) {
+            const amp = waveIntensity * (currentScenario === 3 ? 5.0 : 3.5);
+            let y;
+            if (currentScenario === 1 || currentScenario === 2) {
+                // 泡沫線使用相同的海岸銜接曲線
+                const progress = x / oceanX;
+                const shorelineY = h * 0.66 + (h * 0.72 - h * 0.66) * progress;
+                y = shorelineY + Math.sin(x * 0.03 + waveOffset) * amp * (1 - progress);
+            } else {
+                y = h * 0.66 + Math.sin(x * 0.03 + waveOffset) * amp;
+            }
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Extra Wave Surge in Typhoon
+        if (currentScenario === 3 && waveIntensity > 5) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+            const surgeX = oceanX + Math.sin(waveOffset * 1.5) * 45;
+            ctx.beginPath();
+            ctx.arc(surgeX - 25, h * 0.68, waveIntensity * 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function drawTerrainAndSand() {
+        const w = canvas.width;
+        const h = canvas.height;
+        const oceanX = currentScenario === 3 ? w * 0.35 : w * 0.20;
+        const groundY = h * 0.72;
+
+        // Sandy Shoreline Gradient
+        const sandGradient = ctx.createLinearGradient(0, groundY, w, h);
+        sandGradient.addColorStop(0, '#fde68a');
+        sandGradient.addColorStop(0.5, '#f59e0b');
+        sandGradient.addColorStop(1, '#d97706');
+
+        ctx.fillStyle = sandGradient;
+        ctx.beginPath();
+        ctx.moveTo(oceanX, groundY);
+
+        const fenceX = w * 0.45;
+
+        if (currentScenario === 2 || currentScenario === 3) {
+            const height = currentScenario === 3 ? 35 : duneAccumulationHeight;
+            // Dune Curve
+            // 情境2、3：沙丘皆堆積在竹籬後方（陸側）
+            ctx.lineTo(fenceX - 10, groundY);
+            ctx.quadraticCurveTo(fenceX + 75, groundY - height, fenceX + 160, groundY);
+            ctx.lineTo(w, groundY);
+        } else {
+            // Flat beach profile
+            ctx.lineTo(w, groundY);
+        }
+
+        ctx.lineTo(w, h);
+        ctx.lineTo(oceanX, h);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function drawBambooFence() {
+        // Both Scenario 2 and 3 feature the bamboo sand fence
+        if (currentScenario !== 2 && currentScenario !== 3) return;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const fenceX = w * 0.45;
+        const duneH = currentScenario === 3 ? 35 : duneAccumulationHeight;
+        // 情境2、3的沙丘位於竹籬後方，竹籬固定設置在原始沙灘地面
+        const baseYSand = h * 0.72;
+
+        ctx.save();
+        ctx.strokeStyle = '#78350f'; // Bamboo brown
+        ctx.lineWidth = 3.5;
+
+        // Vertical bamboo stakes
+        for (let i = -20; i <= 20; i += 7) {
+            ctx.beginPath();
+            ctx.moveTo(fenceX + i, baseYSand);
+            ctx.lineTo(fenceX + i, baseYSand - 38);
+            ctx.stroke();
+        }
+
+        // Horizontal woven ties
+        ctx.strokeStyle = '#a16207';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(fenceX - 22, baseYSand - 12);
+        ctx.lineTo(fenceX + 22, baseYSand - 12);
+        ctx.moveTo(fenceX - 22, baseYSand - 26);
+        ctx.lineTo(fenceX + 22, baseYSand - 26);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Noto Sans TC';
+        ctx.fillText('防風竹籬', fenceX - 22, baseYSand - 46);
+
+        ctx.restore();
+    }
+
+    function drawResidentialArea() {
+        const w = canvas.width;
+        const h = canvas.height;
+        const houseStartX = w * 0.82;
+        const groundY = h * 0.72;
+
+        // Draw Houses
+        for (let i = 0; i < 2; i++) {
+            const x = houseStartX + i * 55;
+            const y = groundY;
+
+            // House Main Body
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillRect(x, y - 35, 45, 35);
+
+            // Roof
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(x - 4, y - 35);
+            ctx.lineTo(x + 22.5, y - 55);
+            ctx.lineTo(x + 49, y - 35);
+            ctx.closePath();
+            ctx.fill();
+
+            // Window & Door
+            ctx.fillStyle = '#0284c7';
+            ctx.fillRect(x + 8, y - 25, 10, 10);
+            ctx.fillStyle = '#b45309';
+            ctx.fillRect(x + 26, y - 22, 11, 22);
+
+            // Sand Accumulation on Houses (Scenario 1)
+            if (currentScenario === 1 && residentialSandAccumulation > 5) {
+                const sandH = (residentialSandAccumulation / 100) * 28;
+                ctx.fillStyle = 'rgba(217, 119, 6, 0.85)';
+                ctx.beginPath();
+                ctx.moveTo(x - 6, y);
+                ctx.quadraticCurveTo(x + 20, y - sandH, x + 50, y);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        // Community Label
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 13px Noto Sans TC';
+        ctx.fillText('居民聚落區', houseStartX, groundY + 30);
+    }
+
+    function drawSandParticles() {
+        const w = canvas.width;
+        const fenceX = w * 0.45;
+        const houseX = w * 0.82;
+
+        ctx.fillStyle = '#f59e0b';
+
+        sandParticles.forEach(p => {
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Particle Physics Update
+            p.x += p.vx * (windSpeed / 4);
+            p.y += p.vy + Math.sin(p.x * 0.05) * 0.5;
+
+            // Collision Logic per Scenario
+            if (currentScenario === 2) {
+                // Fence traps sand!
+                if (p.x >= fenceX - 15 && p.x <= fenceX + 20) {
+                    p.x = Math.random() * (w * 0.3); // Reset particle to coast
+                    p.y = canvas.height * 0.65 + Math.random() * (canvas.height * 0.2);
+                    if (duneAccumulationHeight < 45) {
+                        duneAccumulationHeight += 0.05; // Dune grows
+                        
+                        // Check for stage progression
+                        if (duneAccumulationHeight >= 22 && !plantsPlanted) {
+                            successionStage = 2;
+                            plantsPlanted = true;
+                            initTrees();
+                        } else if (duneAccumulationHeight >= 38 && !forestPlanted) {
+                            successionStage = 3;
+                            forestPlanted = true;
+                            initTrees();
+                        }
+                    }
+                }
+            } else if (currentScenario === 1) {
+                // Sand reaches houses
+                if (p.x >= houseX) {
+                    p.x = Math.random() * (w * 0.3);
+                    p.y = canvas.height * 0.65 + Math.random() * (canvas.height * 0.2);
+                    if (residentialSandAccumulation < 100) {
+                        residentialSandAccumulation += 0.06;
+                    }
+                }
+            }
+
+            // Wrap around canvas
+            if (p.x > w || p.y > canvas.height) {
+                p.x = Math.random() * (w * 0.3);
+                p.y = canvas.height * 0.65 + Math.random() * (canvas.height * 0.2);
+            }
+        });
+
+        ctx.globalAlpha = 1.0;
+    }
+
+    function drawRainAndWindLines() {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Wind Stream Lines
+        ctx.strokeStyle = currentScenario === 3 ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.2;
+
+        for (let i = 0; i < windSpeed * 2; i++) {
+            const lx = (timeStep * (windSpeed * 3) + i * 90) % (w * 1.2) - 50;
+            const ly = 50 + (i * 35) % (h * 0.6);
+
+            ctx.beginPath();
+            ctx.moveTo(lx, ly);
+            ctx.lineTo(lx + 40 + windSpeed * 5, ly + (currentScenario === 3 ? 15 : 0));
+            ctx.stroke();
+        }
+
+        // Typhoon Heavy Rain
+        if (currentScenario === 3) {
+            ctx.strokeStyle = 'rgba(186, 230, 253, 0.6)';
+            ctx.lineWidth = 1.5;
+
+            rainParticles.forEach(rp => {
+                ctx.beginPath();
+                ctx.moveTo(rp.x, rp.y);
+                ctx.lineTo(rp.x + rp.vx, rp.y + rp.length);
+                ctx.stroke();
+
+                rp.x += rp.vx * (windSpeed / 5);
+                rp.y += rp.vy;
+
+                if (rp.y > h || rp.x < 0) {
+                    rp.y = -20;
+                    rp.x = Math.random() * (w + 200);
+                }
+            });
+        }
+    }
+
+    function drawTreesAndForest() {
+        const windPower = windSpeed;
+        const isTyphoon = (currentScenario === 3);
+
+        trees.forEach((tree, idx) => {
+            // 情境2：保安林從小樹苗逐漸長大
+            if (currentScenario === 2 && tree.type === 'Casuarina' && tree.scale < tree.targetScale) {
+                tree.scale = Math.min(tree.targetScale, tree.scale + 0.0015);
+            }
+
+            // In typhoon scenario, high wind/waves knock trees over over time
+            if (isTyphoon && windSpeed > 7 && waveIntensity > 6) {
+                if (idx % 2 === 0 && timeStep > 90) {
+                    tree.isFallen = true;
+                }
+                if (idx % 3 === 1 && timeStep > 180) {
+                    tree.isFallen = true;
+                }
+            }
+
+            tree.draw(ctx, windPower, isTyphoon);
+        });
+
+        // Calculate Forest Health Stat
+        if (isTyphoon) {
+            const fallenCount = trees.filter(t => t.isFallen).length;
+            if (trees.length > 0) {
+                forestHealth = Math.max(10, ((trees.length - fallenCount) / trees.length) * 100);
+            }
+        } else {
+            forestHealth = 100;
+        }
+    }
+
+    // Main Animation Loop
+    function animate() {
+        if (!isRunning) return;
+
+        timeStep++;
+
+        // Clear Screen
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Render Layers in Order
+        drawBackgroundSky();
+        drawOceanAndWaves();
+        drawTerrainAndSand();
+        drawBambooFence();
+        drawTreesAndForest();
+        drawResidentialArea();
+        drawSandParticles();
+        drawRainAndWindLines();
+
+        // Dynamic Stats Update (throttled)
+        if (timeStep % 10 === 0) {
+            updateUIStats();
+        }
+
+        animationFrameId = requestAnimationFrame(animate);
+    }
+
+    // Initialization on Load
+    window.onload = function() {
+        resizeCanvas();
+        switchScenario(1);
+        animate();
+    };
+</script>
+
+<script src="./script.js"></script>
+
+  </body>
+</html>
